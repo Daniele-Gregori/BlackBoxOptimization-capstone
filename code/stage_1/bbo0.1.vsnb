@@ -608,14 +608,6 @@
    "executionSummary": {}
   },
   {
-   "kind": 1,
-   "value": "### speed improvement ideas",
-   "languageId": "markdown",
-   "outputs": [],
-   "metadata": {},
-   "executionSummary": {}
-  },
-  {
    "kind": 2,
    "value": "With[{k=3,sub=5},\npredGP[k][gridAll[k, sub]]]//EchoTiming",
    "languageId": "wolfram",
@@ -700,22 +692,6 @@
    "kind": 2,
    "value": "",
    "languageId": "wolfram",
-   "outputs": [],
-   "metadata": {},
-   "executionSummary": {}
-  },
-  {
-   "kind": 1,
-   "value": "## Logistic Regression",
-   "languageId": "markdown",
-   "outputs": [],
-   "metadata": {},
-   "executionSummary": {}
-  },
-  {
-   "kind": 1,
-   "value": "## Support Vector Machine",
-   "languageId": "markdown",
    "outputs": [],
    "metadata": {},
    "executionSummary": {}
