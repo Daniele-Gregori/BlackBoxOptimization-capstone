@@ -36,12 +36,12 @@ Data is stored in dictionary format mapping input arrays to output values and ex
 
 Data was collected over **approximately ten weeks**, with one new query per function submitted each round. The initial data points were provided as part of the project setup. Subsequent queries were generated through an evolving set of strategies:
 
-- **Rounds 1\[Dash]2:** Gaussian Process surrogate models with Upper Confidence Bound (UCB) acquisition function, evaluated over brute-force uniform grids with 5\[Dash]16 subdivisions per dimension
+- **Rounds 1–2:** Gaussian Process surrogate models with Upper Confidence Bound (UCB) acquisition function, evaluated over brute-force uniform grids with 5–16 subdivisions per dimension
 - **Round 3:** Hybrid GP-SVM approach, using Support Vector Machine classification of the upper quartile to identify promising regions and inform UCB exploration
-- **Rounds 4\[Dash]6:** Bayesian Neural Network trained from scratch with gradient-based sensitivity analysis and gradient ascent from best known points
+- **Rounds 4–6:** Bayesian Neural Network trained from scratch with gradient-based sensitivity analysis and gradient ascent from best known points
 - **Round 7:** Systematic hyperparameter tuning of GP kernel type, ARD configuration, and noise parameter alpha across 48 configurations with 3-fold cross-validation
 - **Round 8:** LLM-generated optimization code using the Anthropic API with Claude Opus, tested across temperature and sampling parameter variations
-- **Rounds 9\[Dash]10:** Synthesis strategy combining tuned GP with ARD-based dimension reduction, gradient ascent, and UCB validation
+- **Rounds 9–10:** Synthesis strategy combining tuned GP with ARD-based dimension reduction, gradient ascent, and UCB validation
 
 All queries after the initial provided points were model-driven rather than randomly sampled. Computation was performed on two personal laptops with 8/24 cores and intermittently on a remote batch computation provider with 192 cores. Intermediate grid evaluations produced approximately **6.5 GB** of CSV files across 70 files.
 

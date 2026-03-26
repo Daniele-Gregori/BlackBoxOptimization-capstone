@@ -126,12 +126,14 @@ The Upper Confidence Bound acquisition function was used to select query points,
 
 **Key insight:** Function 1 was identified as anomalous, having essentially one non-negligible output value. It was handled manually rather than through the standard GP pipeline.
 
+> **Notebook sections:** 1–4 (Data Wrangling, Progress Analysis, Grid Search, Gaussian Processes)
+
 ### Phase 2: Model Diversification (Rounds 3–6)
 
-**Core methods:** GP-SVM hybrid, Bayesian Neural Network, gradient analysis
+**Core methods:** GP + classification (Logistic Regression, SVM), Bayesian Neural Network, gradient analysis
 
-**Round 3 — SVM for region identification:**
-The optimization problem was recast as a classification task by labeling outputs above the upper quartile as positive. An SVM with C=1 was trained to identify the boundary of promising regions. The SVM decision boundary then informed where to push UCB exploration, creating a hybrid strategy where the SVM provided strategic direction and the GP provided precise predictions.
+**Round 3 — Classification for region identification:**
+The optimization problem was recast as a classification task by labeling outputs above the upper quartile as positive. Both a Logistic Regression classifier (providing probability estimates) and an SVM with RBF kernel were trained to identify promising regions. The classification boundaries informed where to push UCB exploration, creating a hybrid strategy where classifiers provided strategic direction and the GP provided precise predictions.
 
 **Rounds 4–6 — Bayesian Neural Network:**
 A BNN was implemented from scratch in PyTorch with three Bayesian linear layers (32→16→8 units). Instead of fixed weights, distributions were learned, with the loss function combining negative log-likelihood and KL divergence regularization. Multiple forward passes with different weight samples provided mean predictions and uncertainty estimates.
@@ -147,6 +149,8 @@ Critically, gradient computation was implemented to assess the sensitivity of ou
 | Mixed extrema | Multiple peaks and valleys | Mid-dimensional |
 | Oscillatory | Periodic-like variations | Most challenging |
 
+> **Notebook sections:** 5–7 (Logistic Regression, SVM, Neural Networks)
+
 ### Phase 3: Systematic Refinement (Rounds 7–8)
 
 **Core method:** Hyperparameter tuning with cross-validation
@@ -161,13 +165,15 @@ Round 7 represented the most impactful methodological advance. A systematic grid
 
 | Finding | Impact |
 |---------|--------|
-| Matérn 5/2 best kernel for half the functions | Function-specific model selection |
-| ARD improved RMSE by 40–60% on high-dimensional functions | Feature relevance quantification |
-| Optimal alpha between 1e-5 and 1e-4 | Proper regularization calibration |
-| Higher dimensions require larger alpha | Dimension-aware regularization |
+| RQ and Matérn 2.5 each best on 3/8 functions | No single kernel universally optimal — function-specific selection essential |
+| Matérn 2.5 ARD best for 8D function | ARD critical for high-dimensional problems |
+| Optimal alpha bimodal: 1e-8 or 1e-3 | No simple dimensionality–alpha relationship |
+| Worst/best RMSE ratio up to 5.7× | Default hyperparameters substantially suboptimal |
 
 **Round 8 — LLM-assisted code generation:**
 The Anthropic API was used with Claude Opus to generate complete Bayesian optimization implementations. Experiments with temperature (default vs 1.0) and top-p (default vs 0.9) sampling revealed that T=1.0 produced the most complete and reliable code, while higher top-p introduced creative but structurally problematic choices.
+
+> **Notebook section:** 8 (GP Hyperparameter Tuning)
 
 ### Phase 4: Synthesis (Rounds 9–10)
 
@@ -175,21 +181,27 @@ The Anthropic API was used with Claude Opus to generate complete Bayesian optimi
 
 The final strategy integrated the strongest findings into a single pipeline:
 
-1. **Fit tuned GP** using function-specific kernel and alpha from round 7
-2. **Extract ARD length scales** to identify irrelevant dimensions
-3. **Fix irrelevant dimensions** at current best values, reducing effective search space
-4. **Gradient ascent** from current best point in reduced space
-5. **UCB validation** to ensure the candidate balances predicted value with uncertainty
+1. **Fit tuned GP** using Matérn 2.5 + ARD kernel with alpha=1e-4
+2. **Extract ARD length scales** to identify irrelevant dimensions — length scales ranged from 0.006 to 1e5 (sklearn bound), with clear relevance separation across all functions
+3. **Fix irrelevant dimensions** at current best values, reducing effective search space (8D→4D, 6D→3D, even 2D→1D)
+4. **Expected Improvement** maximization via multi-start L-BFGS-B (200 restarts) in the reduced space
+5. **Gradient ascent** on the GP mean surface from the best known point
+6. **UCB cross-check** (beta≈3) to maintain exploration pressure
+7. **Select best candidate** across all three methods
 
 ```python
 # Simplified final pipeline pseudocode
 for each function:
     gp = fit_tuned_gp(data, best_kernel, best_alpha, ARD=True)
     important_dims = identify_relevant_dimensions(gp.length_scales)
-    x_candidate = gradient_ascent(gp, x_best, dims=important_dims)
-    x_final = ucb_validate(gp, x_candidate, beta=3)
+    x_ei = multistart_lbfgsb(expected_improvement, gp, dims=important_dims)
+    x_ga = gradient_ascent(gp, x_best, dims=important_dims)
+    x_ucb = multistart_lbfgsb(ucb, gp, beta=3, dims=important_dims)
+    x_final = best_candidate(x_ei, x_ga, x_ucb)
     submit(x_final)
 ```
+
+> **Notebook sections:** 9–10 (ARD Analysis & Dimension Reduction, Unified Optimization Pipeline)
 
 ### Exploration vs. Exploitation Balance
 
@@ -209,16 +221,16 @@ The approach is distinctive in three ways. First, the deliberate progression fro
 
 ## Results Summary
 
-| Function | Dims | Best Strategy | Key Challenge |
-|----------|------|--------------|---------------|
-| 1 | 2 | Manual inspection | Anomalous data distribution |
-| 2 | 2 | Tuned GP + exploitation | Straightforward landscape |
-| 3 | 3 | Tuned GP + gradient ascent | Moderate complexity |
-| 4 | 4 | Tuned GP + ARD | Increasing dimensionality |
-| 5 | 4 | Tuned GP + exploration | Oscillatory behavior |
-| 6 | 5 | Tuned GP + ARD + gradient | Balancing exploration and exploitation |
-| 7 | 6 | ARD dimension reduction + gradient | High dimensionality, slow convergence |
-| 8 | 8 | ARD dimension reduction + gradient | Extreme sparsity, 19 points in 8D |
+| Function | Dims | Eff. Dims | Winner | Improved? | Key Observation |
+|----------|------|-----------|--------|-----------|-----------------|
+| 1 | 2 | 1 | GA | No | Already well-exploited; dim 0 irrelevant (ls=705) |
+| 2 | 2 | 1 | GA | No | Already well-exploited; dominated by dim 0 |
+| 3 | 3 | 2 | EI | Yes | EI found candidate below best observed (min) |
+| 4 | 4 | 2 | EI | Yes | Uniform length scales (2.6–3.0), ambiguous reduction |
+| 5 | 4 | 2 | GA | No | Dim 0 highly irrelevant (ls=19.3) |
+| 6 | 5 | 3 | GA | Yes | Dim 0 irrelevant (ls=19,444); GA improved over best |
+| 7 | 6 | 3 | GA | Yes | Dim 2 irrelevant (ls=1e5); GA found better candidate |
+| 8 | 8 | 4 | EI | Yes | Dim 7 irrelevant (ls=1e5); EI best on highest-dim |
 
 Detailed performance metrics are available in the [Model Card](docs/model_card.md).
 
@@ -240,9 +252,9 @@ python >= 3.9
 scikit-learn >= 1.0
 pytorch >= 1.12
 numpy >= 1.21
+scipy >= 1.7
 pandas >= 1.4
 matplotlib >= 3.5
-joblib >= 1.1
 ```
 
 ---
